@@ -27,7 +27,6 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
   const [stock, setStock] = useState<Stock[]>([]);
   const [cart, setCart] = useState<Product[]>(() => {
      const storagedCart = localStorage.getItem('@RocketShoes:cart');
-    console.log(storagedCart);
     if (storagedCart) {
       return JSON.parse(storagedCart);
     }
@@ -37,17 +36,37 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const addProduct = async (productId: number) => {
     try {
-      const product: Product[] = products.filter(product => product.id === productId);
-      const newProduct: Product = {
-        ...product[0],
-        amount: 1,
-      }
+      const getProduct: Product[] = products.filter(product => product.id === productId);
       
-      if(cart.find(product => product.id === productId)){
-        updateProductAmount({ productId, amount: 1 });
+      let newProduct: Product = {
+        ...getProduct[0],
+        amount: getProduct[0].amount ?? 1,
+      };
+      
+      const productInCart= cart.find(product => product.id === productId);
+      if(productInCart){
+        const productStock = stock.find(product => product.id === productId)?.amount || 0;
+        
+
+        if(productStock > productInCart.amount){
+      
+        let newCart: Product[]= await cart.map(product => {
+          product.id === productId && product.amount++;
+          return product;
+        });
+        setCart([...newCart]);
+        localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));          
+        
+      }
+        else{
+          toast.error('Quantidade solicitada fora de estoque');
+        }
+        
+        
       }else{
         setCart([...cart, newProduct]);
         localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));        
+
       }
       
       
@@ -59,7 +78,13 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const removeProduct = (productId: number) => {
     try {
-      // TODO
+      
+    const newCart: Product[] = cart.filter(product => product.id !== productId);
+    
+    setCart([...newCart]);
+
+    localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));
+    
     } catch {
       toast.error('Erro na remoção do produto');
     }
@@ -70,29 +95,28 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     amount,
   }: UpdateProductAmount) => {
     try {
-      
-      const newCart: Product[] = cart.map(product => {
-        const productStock = stock.find(product => product.id === productId)?.amount || 0;
-        if(product.id === productId){
-
-          if(amount >= 1){
-            productStock > product.amount ? product.amount++ 
-            : toast.error('Quantidade solicitada fora de estoque');
+        const newCart: Product[] = cart.map(product => {
+          const productStock = stock.find(product => product.id === productId)?.amount || 0;
+          if(product.id === productId){
+    
+            let lastProductAmout = product.amount;
+  
+            amount !== product.amount && (product.amount = amount)
+            
+            if(productStock < amount){
+              product.amount = lastProductAmout;
+              toast.error('Quantidade solicitada fora de estoque');
+            } 
           }
+          return product;
+        })
 
-          (product.amount > 1 && amount < 0) && product.amount--;
-        }
-        
-        return product;
-      })
-      
-      
-      setCart([...newCart]);
-
-      localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));
+        setCart([...newCart]);
+  
+        localStorage.setItem('@RocketShoes:cart', JSON.stringify(cart));
       
     } catch {
-      // TODO
+      toast.error('Erro na alteração da quantidade produto');
     }
   };
 
@@ -101,7 +125,6 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     .then(response => setProducts([...response.data]))
     api.get('stock')
     .then(response => setStock([...response.data]));
-
   }, []);
 
   return (
